@@ -2,8 +2,11 @@ clf;
 close;
 clear %ワークスペースの数値を初期化
 
+ani = 1;%1 is booting  Animation 
+
 L =76;%[m]
 Rh =50;%[mm]ヒンジ半径
+radii = 56;
 theta_w = 0; %車輪モータ初期値
 n = 1000;%円を描くときの分割数n
 num_seg = 100 ;
@@ -12,6 +15,8 @@ k=0;
 p=0;
 rS =20 ;
 theta_w =zeros(n,1);
+centers = zeros(n,2);
+
 % xS=zeros(n,1);%シャフト位置
 % yS=zeros(n,1);
 xP = zeros(n,1);
@@ -20,6 +25,9 @@ xS = zeros(n,1);
 yS = zeros(n,1);
 xH = zeros(n,1);
 yH = zeros(n,1);
+xW = zeros(n,1);
+yW = zeros(n,1);
+
 theta_pi = zeros(n,1);
 
 seg_x = zeros(n,num_seg);
@@ -40,8 +48,8 @@ ForceZ = zeros(n,num_seg);
 ForceX_sum = zeros(n,1);
 ForceZ_sum = zeros(n,1);
 
-w_x = zeros(n,1);
- 
+w_x = zeros(n,2);
+w_x(1:1000,2) = 56;
 w_c = [0,56];%wheel center
 Mass = 7.2; %[kg]
 TreadWidth =63;%[mm]
@@ -66,16 +74,10 @@ dy(1,1:num_seg) = 0;
 d_vx(1,1:num_seg) = 0;
 d_vy(1,1:num_seg) = 0;
 theta_w(1) = 0;
-%%
-% theta = (linspace(0,- pi,n)).';%unit rad
-% x = rS*cos(theta) ;  
-% y = rS*sin(theta) ;
-
+%% Initialized
 x = w_c(1); 
 y = w_c(2);
-w_x(1) =w_c(1);
-% xS(i+1:i+n,1) = x.' ;
-% yS(i+1:i+n,1) = y.' ;
+w_x(1) =w_c(1); % 
 
 
 %% パドルの手先位置の移動速度Δvx,vyの計算
@@ -83,13 +85,14 @@ omega = 10 ;%deg/s
 duration = deg2rad(180) / omega ; %test time
 dt = duration / n    ;
 q = 1;
-%%
 k =1;
 for i=1:n
-    xS(i) = w_x(i);
+    xS(i) = w_x(i,1);
     yS(i) = y;
     xH(i,1) = (Rh * cos(theta_w(i,1)) + w_x(i,1));
     yH(i) = (Rh * sin(theta_w(i,1)) + w_c(2));
+    xW(i,1) = (radii * cos(theta_w(i,1)) + w_x(i,1));
+    yW(i,1) = (radii * sin(theta_w(i,1)) + w_c(2));
     theta_w = theta_w + (- omega) * dt ;
     theta_pi(i,1) =  atan2(yH(i) - yS(i),xH(i) - xS(i));
     if  theta_pi(i,1) >0
@@ -112,12 +115,12 @@ for i=1:n
          else
            G(i,q) = atan(d_vy(i,q)./(d_vx(i,q)+ v_x(i-1)));  
          end
-%% z
+
         z(i,q) = seg_y(i,q);
 
         Z(i,q) = z(i,q);
         Z(Z>0) = 0;        
-     
+        
          alphaX(i,q)=(Cm11 * cos(-2 * B(i,q) + G(i,q)) + C01 * cos(G(i,q)) + ...
                         C11 * cos(2 * B(i,q) + G(i,q)) + D10 * sin(2 * B(i,q)));
          alphaZ(i,q) = (A10 * cos(2 * B(i,q)) + A00 + Bm11 * sin((-2 * B(i,q)) + G(i,q)) + ...
@@ -163,7 +166,7 @@ for i=1:n
     else if a(i) ~= 0    
         v_x(i) = v_x(i-1)+a(i)*dt;
         mov_x(i) = v_x(i-1)*dt + 1/2 *a(i)*dt*dt;
-        w_x(i+1) = mov_x(i) * 1000 + w_x(i); %change unit [m] to [mm]
+        w_x(i+1) = mov_x(i) * 10000 + w_x(i); %change unit [m] to [mm]
         else
             v_x(i) = 0;
             mov_x(i) = mov_x(i-1);
@@ -172,7 +175,39 @@ for i=1:n
     end
 end
 
-%% Animation part( future work )
+%% Animation part
+
+ if ani == 1
+     fig=figure(10);
+       set(gcf,'name','smple_anm');
+    set(fig,'DoubleBuffer','on')
+    clf
+    writeObj= VideoWriter('Sample_animation_dis','MPEG-4');
+    open(writeObj);
+     for tdx= 1:n
+          clf
+          x_sand = [-80 w_x(tdx,1)+120 w_x(tdx,1)+120 -80];
+          y_sand = [0 0 -50 -50];
+          patch(x_sand,y_sand,'yellow','FaceAlpha',.2); %plot sand level
+          center = [w_x(tdx,1) w_x(tdx,2)];
+          viscircles(center,radii,'Color','k'); %draw wheel
+          hold on
+          plot([xS(tdx,1),xP(tdx,1)],[yS(tdx,1),yP(tdx,1)],'LineWidth',1.5) %draw paddle
+          hold on
+          plot(xW(tdx,1),yW(tdx,1),'-o','Color','g','Markersize',5,'MarkerFaceColor','g');
+          hold on
+          daspect([1 1 1]);
+          xlabel('{holizon} [mm]','Fontname','Times New Roman','FontSize',14);
+          ylabel('{vertical} [mm]','Fontname','Times New Roman','FontSize',14);
+          xlim([-80 w_x(tdx,1)+80]);
+          ylim([-40 120]);
+          drawnow;
+          F=getframe(fig);
+          writeVideo(writeObj,F);
+     end
+     close(writeObj);
+ end
+
  %% plot area
 % figure(1)
 % plot(xS,yS,'k','LineWidth',1.5,'MarkerSize',100);
