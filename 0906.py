@@ -269,17 +269,37 @@ j = 0
 
 
 #Add part
-ser = serial.Serial("COM3", 9600)
+#calibrate distance sensor
+offsets_distance = [0 for i in range(20)]
+j = 0
+ser = serial.Serial("COM3", 100000)
+while j <= 10:
+
+    line = ser.readline()
+    line2 = line.strip().decode('utf-8')
+    line3 = int(line2)
+    offsets_distance.append(line3)
+    offsets_distance.pop(0)
+    j = j + 1
+ser.close()
+off_d = sum(offsets_distance)/j
+
+print('offset value : = %f' %off_d)
 
 with open(basename+'.csv','w') as logFile:
     logFile.write('Time,cur_1,cur_2,cur_3,ditance\n')#depends on record data
 
+    ser = serial.Serial("COM3", 100000)
     tic()
-
     while 1:
         
         t = time.time() - startTime_for_tictoc
-        
+        print(t)
+        line = ser.readline()
+        line2 = line.strip().decode('utf-8')
+        line3 = int(line2)
+            
+        dis = line3 - off_d
         if t <= 18:
             dxl1_goal_position = int(w * t / 360 * 4096 + ini_W_position)
             dxl2_goal_position = int(ini_C_position)
@@ -301,13 +321,9 @@ with open(basename+'.csv','w') as logFile:
         # Clear syncwrite parameter storage
             groupSyncWrite1.clearParam()
 
-            line = ser.readline()
-            line2 = line.strip().decode('utf-8')
-
-            
 
             logFile.write('%f,'%t)
-            logFile.write(str(line2))
+            logFile.write('%d,'%dis)
             logFile.write('\n')
             
             
